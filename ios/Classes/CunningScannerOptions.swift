@@ -30,18 +30,6 @@ struct CunningScannerOptions {
         self.scanFilter = CunningScannerFilter.photo
     }
     
-    init(imageFormat: CunningScannerImageFormat) {
-        self.imageFormat = imageFormat
-        self.jpgCompressionQuality = 1.0
-        self.scanFilter = CunningScannerFilter.photo
-    }
-    
-    init(imageFormat: CunningScannerImageFormat, jpgCompressionQuality: Double) {
-        self.imageFormat = imageFormat
-        self.jpgCompressionQuality = jpgCompressionQuality
-        self.scanFilter = CunningScannerFilter.photo
-    }
-    
     init(imageFormat: CunningScannerImageFormat, jpgCompressionQuality: Double, scanFilter: CunningScannerFilter) {
         self.imageFormat = imageFormat
         self.jpgCompressionQuality = jpgCompressionQuality
@@ -49,25 +37,15 @@ struct CunningScannerOptions {
     }
     
     static func fromArguments(args: Any?) -> CunningScannerOptions {
-        if (args == nil) {
-            return CunningScannerOptions()
-        }
+        guard
+            let root = args as? [String: Any],
+            let dict = root["iosScannerOptions"] as? [String: Any]
+        else { return .init() }
+
+        let imageFormat = CunningScannerImageFormat(rawValue: (dict["imageFormat"] as? String) ?? "png") ?? .png
+        let jpgQ = (dict["jpgCompressionQuality"] as? Double) ?? 1.0
+        let scanFilter = CunningScannerFilter(rawValue: (dict["scanFilter"] as? String) ?? "photo") ?? .photo
         
-        let arguments = args as? Dictionary<String, Any>
-    
-        if arguments == nil || arguments!.keys.contains("iosScannerOptions") == false {
-            return CunningScannerOptions()
-        }
-        
-        let scannerOptionsDict = arguments!["iosScannerOptions"] as! Dictionary<String, Any>
-        let imageFormat: String = (scannerOptionsDict["imageFormat"] as? String) ?? "png"
-        let jpgCompressionQuality: Double = (scannerOptionsDict["jpgCompressionQuality"] as? Double) ?? 1.0
-        let scanFilter: String = (scannerOptionsDict["scanFilter"] as? String) ?? "photo"
-            
-        return CunningScannerOptions(
-            imageFormat: CunningScannerImageFormat(rawValue: imageFormat) ?? CunningScannerImageFormat.png,
-            jpgCompressionQuality: jpgCompressionQuality,
-            scanFilter: CunningScannerFilter(rawValue: scanFilter) ?? CunningScannerFilter.photo
-        )
+        return .init(imageFormat: imageFormat, jpgCompressionQuality: jpgQ, scanFilter: scanFilter)
     }
 }
