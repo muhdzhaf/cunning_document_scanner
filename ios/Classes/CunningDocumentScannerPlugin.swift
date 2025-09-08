@@ -99,6 +99,12 @@ private class CustomScannerViewController: UIViewController, AVCaptureVideoDataO
             videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "videoQueue"))
         }
         
+        // Add photo output
+        let photoOutput = AVCapturePhotoOutput()
+        if captureSession.canAddOutput(photoOutput) {
+            captureSession.addOutput(photoOutput)
+        }
+        
         setupPreviewLayer()
         setupRectangleDetection()
         
@@ -185,16 +191,14 @@ private class CustomScannerViewController: UIViewController, AVCaptureVideoDataO
     }
     
     private func processCapturedImage() {
-        // Add photo output if not already added
-        let photoOutput = AVCapturePhotoOutput()
-        if captureSession.canAddOutput(photoOutput) {
-            captureSession.addOutput(photoOutput)
+        // Get the photo output from the capture session
+        guard let photoOutput = captureSession.outputs.first(where: { $0 is AVCapturePhotoOutput }) as? AVCapturePhotoOutput else {
+            showError(message: "Failed to capture photo")
+            return
         }
         
         let settings = AVCapturePhotoSettings()
-        if let delegate = self as? AVCapturePhotoCaptureDelegate {
-            photoOutput.capturePhoto(with: settings, delegate: delegate)
-        }
+        photoOutput.capturePhoto(with: settings, delegate: self)
     }
     
     
