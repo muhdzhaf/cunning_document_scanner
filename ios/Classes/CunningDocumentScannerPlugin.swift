@@ -3,7 +3,7 @@ import AVFoundation
 import Vision
 import Flutter
 
-public class CunningDocumentScannerPlugin: NSObject, FlutterPlugin {
+@objc public class CunningDocumentScannerPlugin: NSObject, FlutterPlugin {
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "cunning_document_scanner", binaryMessenger: registrar.messenger())
         let instance = CunningDocumentScannerPlugin()
@@ -15,25 +15,45 @@ public class CunningDocumentScannerPlugin: NSObject, FlutterPlugin {
             let arguments = call.arguments as? [String: Any]
             let saveInGallery = arguments?["saveInGallery"] as? Bool ?? false
             let filterType = arguments?["filterType"] as? String ?? "color"
+            let imageFormat = arguments?["imageFormat"] as? String ?? "png"
+            let jpgCompressionQuality = arguments?["jpgCompressionQuality"] as? Double ?? 1.0
             
-            presentCustomScanner(saveInGallery: saveInGallery, filterType: filterType, result: result)
+            presentCustomScanner(
+                saveInGallery: saveInGallery,
+                filterType: filterType,
+                imageFormat: imageFormat,
+                jpgCompressionQuality: jpgCompressionQuality,
+                result: result
+            )
+        } else {
+            result(FlutterMethodNotImplemented)
         }
     }
     
-    private func presentCustomScanner(saveInGallery: Bool, filterType: String, result: @escaping FlutterResult) {
-        guard let rootVC = UIApplication.shared.keyWindow?.rootViewController else {
-            result(FlutterError(code: "ERROR", message: "Unable to get root view controller", details: nil))
-            return
+    private func presentCustomScanner(
+        saveInGallery: Bool,
+        filterType: String,
+        imageFormat: String,
+        jpgCompressionQuality: Double,
+        result: @escaping FlutterResult
+    ) {
+        DispatchQueue.main.async {
+            guard let rootVC = UIApplication.shared.keyWindow?.rootViewController else {
+                result(FlutterError(code: "ERROR", message: "Unable to get root view controller", details: nil))
+                return
+            }
+            
+            let scannerVC = CustomScannerViewController()
+            scannerVC.saveInGallery = saveInGallery
+            scannerVC.selectedFilter = filterType
+            scannerVC.imageFormat = imageFormat
+            scannerVC.jpgCompressionQuality = jpgCompressionQuality
+            scannerVC.resultHandler = result
+            
+            let navController = UINavigationController(rootViewController: scannerVC)
+            navController.modalPresentationStyle = .fullScreen
+            rootVC.present(navController, animated: true)
         }
-        
-        let scannerVC = CustomScannerViewController()
-        scannerVC.saveInGallery = saveInGallery
-        scannerVC.selectedFilter = filterType
-        scannerVC.resultHandler = result
-        
-        let navController = UINavigationController(rootViewController: scannerVC)
-        navController.modalPresentationStyle = .fullScreen
-        rootVC.present(navController, animated: true)
     }
 }
 
@@ -48,6 +68,8 @@ private class CustomScannerViewController: UIViewController, AVCaptureVideoDataO
     
     var saveInGallery = false
     var selectedFilter = "color"
+    var imageFormat = "png"
+    var jpgCompressionQuality: Double = 1.0
     var resultHandler: FlutterResult?
     
     override func viewDidLoad() {
@@ -243,10 +265,18 @@ private class CustomScannerViewController: UIViewController, AVCaptureVideoDataO
         
         // Save to temp file
         let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-        let filePath = paths[0].appendingPathComponent("scan_\(Date().timeIntervalSince1970).jpg")
+        let fileName = "scan_\(Date().timeIntervalSince1970).\(imageFormat == "jpg" ? "jpg" : "png")"
+        let filePath = paths[0].appendingPathComponent(fileName)
         
-        guard let data = finalImage.jpegData(compressionQuality: 0.9),
-              (try? data.write(to: filePath)) != nil else {
+        let data: Data?
+        if imageFormat == "jpg" {
+            data = finalImage.jpegData(compressionQuality: CGFloat(jpgCompressionQuality))
+        } else {
+            data = finalImage.pngData()
+        }
+        
+        guard let validData = data,
+              (try? validData.write(to: filePath)) != nil else {
             showError(message: "Failed to save image")
             return
         }

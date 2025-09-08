@@ -36,9 +36,13 @@ class CunningDocumentScanner {
     if (iosScannerOptions != null) {
       arguments['filterType'] = iosScannerOptions.filterType;
       arguments['saveInGallery'] = iosScannerOptions.saveInGallery;
+      arguments['imageFormat'] = iosScannerOptions.imageFormat.name;
+      arguments['jpgCompressionQuality'] = iosScannerOptions.jpgCompressionQuality;
     } else {
       arguments['filterType'] = filterType ?? 'color';
       arguments['saveInGallery'] = saveInGallery ?? false;
+      arguments['imageFormat'] = 'png';
+      arguments['jpgCompressionQuality'] = 1.0;
     }
 
     final List<dynamic>? pictures = await _channel.invokeMethod('getPictures', arguments);
