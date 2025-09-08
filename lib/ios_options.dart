@@ -17,11 +17,19 @@ enum IosImageFormat {
 /// can be used to control the quality of the resulting JPEG image. The value
 /// 0.0 represents the maximum compression (or lowest quality) while the value
 /// 1.0 represents the least compression (or best quality). Default value is 1.0.
+///
+/// The [filterType] specifies the type of filter to apply to scanned images.
+/// Available options: 'photo' (VisionKit's default), 'grayscale', 'blackAndWhite',
+/// 'enhanced', or 'color' (neutralized VisionKit enhancement). Default is 'photo'.
+///
+/// The [saveInGallery] specifies whether to save processed images to the photo gallery.
 final class IosScannerOptions {
   /// Creates a [IosScannerOptions].
   const IosScannerOptions({
     this.imageFormat = IosImageFormat.png,
     this.jpgCompressionQuality = 1.0,
+    this.filterType = 'photo',
+    this.saveInGallery = false,
   });
 
   final IosImageFormat imageFormat;
@@ -34,4 +42,17 @@ final class IosScannerOptions {
   /// [jpgCompressionQuality] only has an effect if the [imageFormat] is set to
   /// [IosImageFormat.jpeg] and is ignored otherwise.
   final double jpgCompressionQuality;
+
+  /// The type of filter to apply to scanned images.
+  ///
+  /// Available options:
+  /// - 'photo': Uses VisionKit's built-in processing (no neutralization)
+  /// - 'grayscale': Converts to grayscale
+  /// - 'blackAndWhite': High contrast black and white
+  /// - 'enhanced': Sharpened image
+  /// - 'color': Neutralizes VisionKit's auto-enhancement
+  final String filterType;
+
+  /// Whether to save processed images to the photo gallery.
+  final bool saveInGallery;
 }
