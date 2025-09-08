@@ -27,3 +27,11 @@
 .dart_tool/
 .packages
 build/
+
+.aider.tags.cache.v4
+.aider.input.history
+.aider.chat.history.md
+android/gradlew
+android/gradlew.bat
+android/gradle/wrapper/gradle-wrapper.jar
+android/gradle/wrapper/gradle-wrapper.properties
