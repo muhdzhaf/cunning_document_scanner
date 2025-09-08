@@ -33,7 +33,6 @@ class CunningDocumentScanner {
           'imageFormat': iosScannerOptions.imageFormat.name,
           'jpgCompressionQuality': iosScannerOptions.jpgCompressionQuality,
           'scanFilter': iosScannerOptions.scanFilter.name,
-          'autoShutterEnabled': iosScannerOptions.autoShutterEnabled,
         }
     });
     return pictures?.map((e) => e as String).toList();

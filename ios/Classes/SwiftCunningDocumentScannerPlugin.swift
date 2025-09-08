@@ -48,77 +48,12 @@ public class SwiftCunningDocumentScannerPlugin: NSObject, FlutterPlugin, VNDocum
                 let vc = VNDocumentCameraViewController()
                 vc.delegate = self
                 self.presentingController = vc
-                
-                // Disable auto shutter after presentation
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.disableAutoShutter(vc)
-                }
-                
                 presenter.present(vc, animated: true)
             }
         } else {
             result(FlutterMethodNotImplemented)
             return
         }
-    }
-
-    private func disableAutoShutter(_ documentCameraVC: VNDocumentCameraViewController) {
-        // Only disable if auto shutter is not enabled in options
-        guard !scannerOptions.autoShutterEnabled else { return }
-        
-        // More reliable approach: find the specific camera view controller
-        if let cameraController = findDocumentCameraController(in: documentCameraVC) {
-            // Try multiple private API methods that might control auto capture
-            let selectors = [
-                "setAutoCaptureEnabled:",
-                "autoCaptureEnabled",
-                "setAutomaticallyCaptures:",
-                "automaticallyCaptures"
-            ]
-            
-            for selectorName in selectors {
-                let selector = NSSelectorFromString(selectorName)
-                if cameraController.responds(to: selector) {
-                    // For boolean properties, we want to set to false
-                    if selectorName.contains("set") {
-                        cameraController.perform(selector, with: false)
-                    } else if selectorName == "autoCaptureEnabled" || selectorName == "automaticallyCaptures" {
-                        // If it's a getter, try to find the corresponding setter
-                        let setterName = "set" + selectorName.prefix(1).uppercased() + selectorName.dropFirst()
-                        let setterSelector = NSSelectorFromString(setterName + ":")
-                        if cameraController.responds(to: setterSelector) {
-                            cameraController.perform(setterSelector, with: false)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func findDocumentCameraController(in viewController: UIViewController) -> AnyObject? {
-        // More specific search for the document camera controller
-        let className = NSStringFromClass(type(of: viewController))
-        
-        // Look for classes that contain "Document" and "Camera" in their name
-        if className.contains("Document") && className.contains("Camera") && className.contains("ViewController") {
-            return viewController
-        }
-        
-        // Recursively search through children
-        for child in viewController.children {
-            if let found = findDocumentCameraController(in: child) {
-                return found
-            }
-        }
-        
-        // Also check presented view controllers
-        if let presented = viewController.presentedViewController {
-            if let found = findDocumentCameraController(in: presented) {
-                return found
-            }
-        }
-        
-        return nil
     }
 
     private func applyFilterToImage(_ image: UIImage, filter: CunningScannerFilter) -> UIImage {
@@ -132,19 +67,29 @@ public class SwiftCunningDocumentScannerPlugin: NSObject, FlutterPlugin, VNDocum
             break
             
         case .photo:
-            // For photo filter, we want to neutralize VisionKit's aggressive processing
-            // by applying a light color correction to make it look more natural
-            let exposure = CIFilter(name: "CIExposureAdjust")!
-            exposure.setValue(outputImage, forKey: kCIInputImageKey)
-            exposure.setValue(0.3, forKey: kCIInputEVKey) // Slight exposure adjustment
-            
-            let colorControls = CIFilter(name: "CIColorControls")!
-            colorControls.setValue(exposure.outputImage ?? outputImage, forKey: kCIInputImageKey)
-            colorControls.setValue(1.1, forKey: kCIInputSaturationKey) // Slightly enhance color
-            colorControls.setValue(1.05, forKey: kCIInputContrastKey) // Slight contrast boost
-            colorControls.setValue(0.05, forKey: kCIInputBrightnessKey) // Minor brightness adjustment
-            
-            outputImage = colorControls.outputImage ?? outputImage
+            // Soften VisionKit's "Color" look (less pop, more neutral)
+            // 1) Reduce vibrance (affects intense colors more gently than saturation)
+            if let vibrance = CIFilter(name: "CIVibrance") {
+                vibrance.setValue(outputImage, forKey: kCIInputImageKey)
+                vibrance.setValue(-0.2, forKey: "inputAmount") // small pullback
+                outputImage = vibrance.outputImage ?? outputImage
+            }
+
+            // 2) Slightly lower saturation & contrast; no brightness bump
+            if let cc = CIFilter(name: "CIColorControls") {
+                cc.setValue(outputImage, forKey: kCIInputImageKey)
+                cc.setValue(0.9, forKey: kCIInputSaturationKey)  // from 1.0 -> 0.9
+                cc.setValue(0.96, forKey: kCIInputContrastKey)   // from 1.0 -> 0.96
+                cc.setValue(0.0, forKey: kCIInputBrightnessKey)  // avoid brightening
+                outputImage = cc.outputImage ?? outputImage
+            }
+
+            // 3) Mild gamma to flatten midtone punch VisionKit adds
+            if let gamma = CIFilter(name: "CIGammaAdjust") {
+                gamma.setValue(outputImage, forKey: kCIInputImageKey)
+                gamma.setValue(0.95, forKey: "inputPower")       // <1.0 lifts mids slightly
+                outputImage = gamma.outputImage ?? outputImage
+            }
             
         case .grayscale:
             // Convert to grayscale

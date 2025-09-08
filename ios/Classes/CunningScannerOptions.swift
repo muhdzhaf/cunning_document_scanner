@@ -23,20 +23,17 @@ struct CunningScannerOptions {
     let imageFormat: CunningScannerImageFormat
     let jpgCompressionQuality: Double
     let scanFilter: CunningScannerFilter
-    let autoShutterEnabled: Bool
     
     init() {
         self.imageFormat = CunningScannerImageFormat.png
         self.jpgCompressionQuality = 1.0
         self.scanFilter = CunningScannerFilter.photo
-        self.autoShutterEnabled = false
     }
     
-    init(imageFormat: CunningScannerImageFormat, jpgCompressionQuality: Double, scanFilter: CunningScannerFilter, autoShutterEnabled: Bool) {
+    init(imageFormat: CunningScannerImageFormat, jpgCompressionQuality: Double, scanFilter: CunningScannerFilter) {
         self.imageFormat = imageFormat
         self.jpgCompressionQuality = jpgCompressionQuality
         self.scanFilter = scanFilter
-        self.autoShutterEnabled = autoShutterEnabled
     }
     
     static func fromArguments(args: Any?) -> CunningScannerOptions {
@@ -48,8 +45,7 @@ struct CunningScannerOptions {
         let imageFormat = CunningScannerImageFormat(rawValue: (dict["imageFormat"] as? String) ?? "png") ?? .png
         let jpgQ = (dict["jpgCompressionQuality"] as? Double) ?? 1.0
         let scanFilter = CunningScannerFilter(rawValue: (dict["scanFilter"] as? String) ?? "photo") ?? .photo
-        let autoShutterEnabled = (dict["autoShutterEnabled"] as? Bool) ?? false
         
-        return .init(imageFormat: imageFormat, jpgCompressionQuality: jpgQ, scanFilter: scanFilter, autoShutterEnabled: autoShutterEnabled)
+        return .init(imageFormat: imageFormat, jpgCompressionQuality: jpgQ, scanFilter: scanFilter)
     }
 }
