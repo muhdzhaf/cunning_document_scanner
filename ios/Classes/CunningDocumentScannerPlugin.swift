@@ -37,7 +37,7 @@ public class CunningDocumentScannerPlugin: NSObject, FlutterPlugin {
     }
 }
 
-private class CustomScannerViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
+private class CustomScannerViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate, AVCapturePhotoCaptureDelegate {
     private var captureSession: AVCaptureSession!
     private var previewLayer: AVCaptureVideoPreviewLayer!
     private var rectangleDetectionRequest: VNDetectRectanglesRequest!
@@ -163,59 +163,18 @@ private class CustomScannerViewController: UIViewController, AVCaptureVideoDataO
     }
     
     private func processCapturedImage() {
-        guard let lastRect = lastDetectedRectangle else {
-            showError(message: "No document detected")
-            return
+        // Add photo output if not already added
+        let photoOutput = AVCapturePhotoOutput()
+        if captureSession.canAddOutput(photoOutput) {
+            captureSession.addOutput(photoOutput)
         }
         
-        // Get latest image buffer
-        guard let videoConnection = AVCaptureConnection.connection(from: captureSession.outputs, for: .video) else {
-            showError(message: "Capture failed")
-            return
-        }
-        
-        videoConnection.captureStillImage { buffer, error in
-            guard let buffer = buffer else {
-                self.showError(message: "Capture failed: \(error?.localizedDescription ?? "")")
-                return
-            }
-            
-            guard let ciImage = CIImage(cvPixelBuffer: buffer) else {
-                self.showError(message: "Image conversion failed")
-                return
-            }
-            
-            var finalImage = UIImage(ciImage: ciImage)
-            
-            // Apply selected filter
-            finalImage = self.applyFilter(image: finalImage, filterType: self.selectedFilter)
-            
-            // Crop and perspective correct
-            finalImage = finalImage.applyingPerspectiveCorrection(rectangle: lastRect)
-            
-            // Save to gallery if needed
-            if self.saveInGallery {
-                UIImageWriteToSavedPhotosAlbum(finalImage, nil, nil, nil)
-            }
-            
-            // Save to temp file
-            let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-            let filePath = paths[0].appendingPathComponent("scan_\(Date().timeIntervalSince1970).jpg")
-            
-            guard let data = finalImage.jpegData(compressionQuality: 0.9),
-                  (try? data.write(to: filePath)) != nil else {
-                self.showError(message: "Failed to save image")
-                return
-            }
-            
-            DispatchQueue.main.async {
-                self.captureSession.stopRunning()
-                self.dismiss(animated: true) {
-                    self.resultHandler?([filePath.path])
-                }
-            }
+        let settings = AVCapturePhotoSettings()
+        if let delegate = self as? AVCapturePhotoCaptureDelegate {
+            photoOutput.capturePhoto(with: settings, delegate: delegate)
         }
     }
+    
     
     private func applyFilter(image: UIImage, filterType: String) -> UIImage {
         guard let ciImage = CIImage(image: image) else { return image }
@@ -261,6 +220,45 @@ private class CustomScannerViewController: UIViewController, AVCaptureVideoDataO
         try? requestHandler.perform([rectangleDetectionRequest])
     }
     
+    func photoOutput(_ output: AVCapturePhotoOutput, 
+                    didFinishProcessingPhoto photo: AVCapturePhoto, 
+                    error: Error?) {
+        guard let imageData = photo.fileDataRepresentation(),
+              let image = UIImage(data: imageData) else {
+            showError(message: "Failed to capture image")
+            return
+        }
+        
+        var finalImage = image
+        finalImage = applyFilter(image: finalImage, filterType: selectedFilter)
+        
+        if let lastRect = lastDetectedRectangle {
+            finalImage = finalImage.applyingPerspectiveCorrection(rectangle: lastRect)
+        }
+        
+        // Save to gallery if needed
+        if saveInGallery {
+            UIImageWriteToSavedPhotosAlbum(finalImage, nil, nil, nil)
+        }
+        
+        // Save to temp file
+        let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+        let filePath = paths[0].appendingPathComponent("scan_\(Date().timeIntervalSince1970).jpg")
+        
+        guard let data = finalImage.jpegData(compressionQuality: 0.9),
+              (try? data.write(to: filePath)) != nil else {
+            showError(message: "Failed to save image")
+            return
+        }
+        
+        DispatchQueue.main.async {
+            self.captureSession.stopRunning()
+            self.dismiss(animated: true) {
+                self.resultHandler?([filePath.path])
+            }
+        }
+    }
+    
     private func showError(message: String) {
         DispatchQueue.main.async {
             let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
@@ -272,21 +270,38 @@ private class CustomScannerViewController: UIViewController, AVCaptureVideoDataO
 
 extension UIImage {
     func applyingPerspectiveCorrection(rectangle: VNRectangleObservation) -> UIImage {
-        // Placeholder for perspective correction logic
-        // This needs proper implementation using CIFilter or CGPoints transformation
-        return self
+        guard let ciImage = CIImage(image: self) else { return self }
+        
+        let perspectiveCorrection = CIFilter(name: "CIPerspectiveCorrection")!
+        perspectiveCorrection.setValue(ciImage, forKey: kCIInputImageKey)
+        
+        // Convert normalized coordinates to image coordinates
+        let imageSize = ciImage.extent.size
+        perspectiveCorrection.setValue(
+            CIVector(cgPoint: CGPoint(x: rectangle.topLeft.x * imageSize.width, 
+                                     y: rectangle.topLeft.y * imageSize.height)),
+            forKey: "inputTopLeft"
+        )
+        perspectiveCorrection.setValue(
+            CIVector(cgPoint: CGPoint(x: rectangle.topRight.x * imageSize.width, 
+                                     y: rectangle.topRight.y * imageSize.height)),
+            forKey: "inputTopRight"
+        )
+        perspectiveCorrection.setValue(
+            CIVector(cgPoint: CGPoint(x: rectangle.bottomRight.x * imageSize.width, 
+                                     y: rectangle.bottomRight.y * imageSize.height)),
+            forKey: "inputBottomRight"
+        )
+        perspectiveCorrection.setValue(
+            CIVector(cgPoint: CGPoint(x: rectangle.bottomLeft.x * imageSize.width, 
+                                     y: rectangle.bottomLeft.y * imageSize.height)),
+            forKey: "inputBottomLeft"
+        )
+        
+        guard let output = perspectiveCorrection.outputImage else { return self }
+        let context = CIContext(options: nil)
+        guard let cgImage = context.createCGImage(output, from: output.extent) else { return self }
+        return UIImage(cgImage: cgImage)
     }
 }
 
-extension AVCaptureConnection {
-    class func connection(from outputs: [AVCaptureOutput], for mediaType: AVMediaType) -> AVCaptureConnection? {
-        for output in outputs {
-            for connection in output.connections {
-                if connection.inputPorts.contains(where: { $0.mediaType == mediaType }) {
-                    return connection
-                }
-            }
-        }
-        return nil
-    }
-}

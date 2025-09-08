@@ -4,7 +4,9 @@ enum IosImageFormat {
   jpg,
 
   /// Indicates the output image should be formatted as PNG image.
-  png,
+  png;
+  
+  String get name => toString().split('.').last;
 }
 
 /// Different options that modify the behavior of the document scanner on iOS.
@@ -22,9 +24,14 @@ final class IosScannerOptions {
   const IosScannerOptions({
     this.imageFormat = IosImageFormat.png,
     this.jpgCompressionQuality = 1.0,
+    this.filterType = 'color',
+    this.saveInGallery = false,
   });
 
   final IosImageFormat imageFormat;
+  final double jpgCompressionQuality;
+  final String filterType;
+  final bool saveInGallery;
 
   /// The quality of the resulting JPEG image, expressed as a value from 0.0 to
   /// 1.0.
@@ -33,5 +40,4 @@ final class IosScannerOptions {
   /// the value 1.0 represents the least compression (or best quality). The
   /// [jpgCompressionQuality] only has an effect if the [imageFormat] is set to
   /// [IosImageFormat.jpeg] and is ignored otherwise.
-  final double jpgCompressionQuality;
 }

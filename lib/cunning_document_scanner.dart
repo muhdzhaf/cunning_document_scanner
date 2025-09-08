@@ -16,6 +16,8 @@ class CunningDocumentScanner {
     int noOfPages = 100,
     bool isGalleryImportAllowed = false,
     IosScannerOptions? iosScannerOptions,
+    String? filterType,
+    bool? saveInGallery,
   }) async {
     Map<Permission, PermissionStatus> statuses = await [
       Permission.camera,
@@ -25,15 +27,21 @@ class CunningDocumentScanner {
       throw Exception("Permission not granted");
     }
 
-    final List<dynamic>? pictures = await _channel.invokeMethod('getPictures', {
+    // Use iOS options if provided, otherwise use individual parameters
+    final Map<String, dynamic> arguments = {
       'noOfPages': noOfPages,
       'isGalleryImportAllowed': isGalleryImportAllowed,
-      if (iosScannerOptions != null)
-        'iosScannerOptions': {
-          'imageFormat': iosScannerOptions.imageFormat.name,
-          'jpgCompressionQuality': iosScannerOptions.jpgCompressionQuality,
-        }
-    });
+    };
+    
+    if (iosScannerOptions != null) {
+      arguments['filterType'] = iosScannerOptions.filterType;
+      arguments['saveInGallery'] = iosScannerOptions.saveInGallery;
+    } else {
+      arguments['filterType'] = filterType ?? 'color';
+      arguments['saveInGallery'] = saveInGallery ?? false;
+    }
+
+    final List<dynamic>? pictures = await _channel.invokeMethod('getPictures', arguments);
     return pictures?.map((e) => e as String).toList();
   }
 }
