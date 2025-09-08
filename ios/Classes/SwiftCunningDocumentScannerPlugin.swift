@@ -63,33 +63,61 @@ public class SwiftCunningDocumentScannerPlugin: NSObject, FlutterPlugin, VNDocum
     }
 
     private func disableAutoShutter(_ documentCameraVC: VNDocumentCameraViewController) {
-        // Use private API to disable auto capture
-        // This is a workaround since VisionKit doesn't provide public API for this
-        let selector = NSSelectorFromString("setAutoCaptureEnabled:")
+        // Only disable if auto shutter is not enabled in options
+        guard !scannerOptions.autoShutterEnabled else { return }
         
-        if documentCameraVC.responds(to: selector) {
-            documentCameraVC.perform(selector, with: false)
-        }
-        
-        // Alternative approach: find and modify the camera controller
-        if let cameraController = findCameraController(in: documentCameraVC) {
-            let autoCaptureSelector = NSSelectorFromString("setAutoCaptureEnabled:")
-            if cameraController.responds(to: autoCaptureSelector) {
-                cameraController.perform(autoCaptureSelector, with: false)
+        // More reliable approach: find the specific camera view controller
+        if let cameraController = findDocumentCameraController(in: documentCameraVC) {
+            // Try multiple private API methods that might control auto capture
+            let selectors = [
+                "setAutoCaptureEnabled:",
+                "autoCaptureEnabled",
+                "setAutomaticallyCaptures:",
+                "automaticallyCaptures"
+            ]
+            
+            for selectorName in selectors {
+                let selector = NSSelectorFromString(selectorName)
+                if cameraController.responds(to: selector) {
+                    // For boolean properties, we want to set to false
+                    if selectorName.contains("set") {
+                        cameraController.perform(selector, with: false)
+                    } else if selectorName == "autoCaptureEnabled" || selectorName == "automaticallyCaptures" {
+                        // If it's a getter, try to find the corresponding setter
+                        let setterName = "set" + selectorName.prefix(1).uppercased() + selectorName.dropFirst()
+                        let setterSelector = NSSelectorFromString(setterName + ":")
+                        if cameraController.responds(to: setterSelector) {
+                            cameraController.perform(setterSelector, with: false)
+                        }
+                    }
+                }
             }
         }
     }
 
-    private func findCameraController(in viewController: UIViewController) -> AnyObject? {
-        // Recursively search for the camera controller
+    private func findDocumentCameraController(in viewController: UIViewController) -> AnyObject? {
+        // More specific search for the document camera controller
+        let className = NSStringFromClass(type(of: viewController))
+        
+        // Look for classes that contain "Document" and "Camera" in their name
+        if className.contains("Document") && className.contains("Camera") && className.contains("ViewController") {
+            return viewController
+        }
+        
+        // Recursively search through children
         for child in viewController.children {
-            if NSStringFromClass(type(of: child)).contains("Camera") {
-                return child
-            }
-            if let found = findCameraController(in: child) {
+            if let found = findDocumentCameraController(in: child) {
                 return found
             }
         }
+        
+        // Also check presented view controllers
+        if let presented = viewController.presentedViewController {
+            if let found = findDocumentCameraController(in: presented) {
+                return found
+            }
+        }
+        
         return nil
     }
 
@@ -104,12 +132,18 @@ public class SwiftCunningDocumentScannerPlugin: NSObject, FlutterPlugin, VNDocum
             break
             
         case .photo:
-            // Minimal color adjustments to neutralize VisionKit's processing
+            // For photo filter, we want to neutralize VisionKit's aggressive processing
+            // by applying a light color correction to make it look more natural
+            let exposure = CIFilter(name: "CIExposureAdjust")!
+            exposure.setValue(outputImage, forKey: kCIInputImageKey)
+            exposure.setValue(0.3, forKey: kCIInputEVKey) // Slight exposure adjustment
+            
             let colorControls = CIFilter(name: "CIColorControls")!
-            colorControls.setValue(outputImage, forKey: kCIInputImageKey)
-            colorControls.setValue(1.0, forKey: kCIInputSaturationKey) // Keep color
-            colorControls.setValue(1.0, forKey: kCIInputContrastKey) // Normal contrast
-            colorControls.setValue(0.0, forKey: kCIInputBrightnessKey)
+            colorControls.setValue(exposure.outputImage ?? outputImage, forKey: kCIInputImageKey)
+            colorControls.setValue(1.1, forKey: kCIInputSaturationKey) // Slightly enhance color
+            colorControls.setValue(1.05, forKey: kCIInputContrastKey) // Slight contrast boost
+            colorControls.setValue(0.05, forKey: kCIInputBrightnessKey) // Minor brightness adjustment
+            
             outputImage = colorControls.outputImage ?? outputImage
             
         case .grayscale:

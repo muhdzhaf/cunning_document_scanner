@@ -35,16 +35,21 @@ enum IosScanFilter {
 ///
 /// The [scanFilter] specifies the post-processing filter to apply after VisionKit
 /// scanning. Default value is [IosScanFilter.photo].
+///
+/// The [autoShutterEnabled] controls whether the scanner should automatically
+/// capture detected documents. Default value is false.
 final class IosScannerOptions {
   /// Creates a [IosScannerOptions].
   const IosScannerOptions({
     this.imageFormat = IosImageFormat.png,
     this.jpgCompressionQuality = 1.0,
     this.scanFilter = IosScanFilter.photo,
+    this.autoShutterEnabled = false,
   });
 
   final IosImageFormat imageFormat;
   final IosScanFilter scanFilter;
+  final bool autoShutterEnabled;
 
   /// The quality of the resulting JPEG image, expressed as a value from 0.0 to
   /// 1.0.
