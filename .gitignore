@@ -27,3 +27,7 @@
 .dart_tool/
 .packages
 build/
+
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v4
