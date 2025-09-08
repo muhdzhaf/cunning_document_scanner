@@ -32,6 +32,7 @@ class CunningDocumentScanner {
         'iosScannerOptions': {
           'imageFormat': iosScannerOptions.imageFormat.name,
           'jpgCompressionQuality': iosScannerOptions.jpgCompressionQuality,
+          'scanFilter': iosScannerOptions.scanFilter.name,
         }
     });
     return pictures?.map((e) => e as String).toList();
